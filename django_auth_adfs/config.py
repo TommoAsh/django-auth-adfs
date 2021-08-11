@@ -64,6 +64,7 @@ class Settings(object):
         self.RELYING_PARTY_ID = None  # Required
         self.RETRIES = 3
         self.SERVER = None  # Required
+        self.TENANTS = {}
         self.TENANT_ID = None  # Required
         self.TIMEOUT = 5
         self.USERNAME_CLAIM = "winaccountname"

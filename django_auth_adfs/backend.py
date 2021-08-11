@@ -41,46 +41,51 @@ class AdfsBaseBackend(ModelBackend):
         return adfs_response
 
     def validate_access_token(self, access_token):
-        for idx, key in enumerate(provider_config.signing_keys):
-            try:
-                # Explicitly define the verification option.
-                # The list below is the default the jwt module uses.
-                # Explicit is better then implicit and it protects against
-                # changes in the defaults the jwt module uses.
-                options = {
-                    'verify_signature': True,
-                    'verify_exp': True,
-                    'verify_nbf': True,
-                    'verify_iat': True,
-                    'verify_aud': True,
-                    'verify_iss': True,
-                    'require_exp': False,
-                    'require_iat': False,
-                    'require_nbf': False
-                }
-                # Validate token and return claims
-                return jwt.decode(
-                    access_token,
-                    key=key,
-                    algorithms=['RS256', 'RS384', 'RS512'],
-                    verify=True,
-                    audience=settings.AUDIENCE,
-                    issuer=provider_config.issuer,
-                    options=options,
-                )
-            except jwt.ExpiredSignature as error:
-                logger.info("Signature has expired: %s" % error)
-                raise PermissionDenied
-            except jwt.DecodeError as error:
-                # If it's not the last certificate in the list, skip to the next one
-                if idx < len(provider_config.signing_keys) - 1:
-                    continue
-                else:
-                    logger.info('Error decoding signature: %s' % error)
-                    raise PermissionDenied
-            except jwt.InvalidTokenError as error:
-                logger.info(str(error))
-                raise PermissionDenied
+        issuers = [provider_config.issuer]
+        if len(settings.TENANTS) > 0:
+            issuers = ["https://sts.windows.net/" + settings.TENANTS[tenant]['tenant_id'] + "/" for tenant in settings.TENANTS]
+        for issuer in issuers:
+            for idx, key in enumerate(provider_config.signing_keys):
+                try:
+                    # Explicitly define the verification option.
+                    # The list below is the default the jwt module uses.
+                    # Explicit is better then implicit and it protects against
+                    # changes in the defaults the jwt module uses.
+                    options = {
+                        'verify_signature': True,
+                        'verify_exp': True,
+                        'verify_nbf': True,
+                        'verify_iat': True,
+                        'verify_aud': True,
+                        'verify_iss': True,
+                        'require_exp': False,
+                        'require_iat': False,
+                        'require_nbf': False
+                    }
+                    # Validate token and return claims
+                    return jwt.decode(
+                        access_token,
+                        key=key,
+                        algorithms=['RS256', 'RS384', 'RS512'],
+                        verify=True,
+                        audience=settings.AUDIENCE,
+                        issuer=issuer,
+                        options=options,
+                    )
+                except jwt.ExpiredSignature as error:
+                    logger.info("Signature has expired: %s" % error)
+                    #raise PermissionDenied
+                except jwt.DecodeError as error:
+                    # If it's not the last certificate in the list, skip to the next one
+                    if idx < len(provider_config.signing_keys) - 1:
+                        continue
+                    else:
+                        logger.info('Error decoding signature: %s' % error)
+                        #raise PermissionDenied
+                except jwt.InvalidTokenError as error:
+                    logger.info(str(error))
+                    #raise PermissionDenied
+        raise PermissionDenied
 
     def process_access_token(self, access_token, adfs_response=None):
         if not access_token:
@@ -222,7 +227,10 @@ class AdfsBaseBackend(ModelBackend):
                 logger.debug("The configured group claim was not found in the access token")
                 access_token_groups = []
 
-            for flag, group in settings.GROUP_TO_FLAG_MAPPING.items():
+            GROUP_TO_FLAG_MAPPING = settings.GROUP_TO_FLAG_MAPPING
+            if len(settings.TENANTS) > 0:
+                GROUP_TO_FLAG_MAPPING = settings.TENANTS[claims['tid']]['GROUP_TO_FLAG_MAPPING']
+            for flag, group in GROUP_TO_FLAG_MAPPING.items():
                 if hasattr(user, flag):
                     if group in access_token_groups:
                         value = True
