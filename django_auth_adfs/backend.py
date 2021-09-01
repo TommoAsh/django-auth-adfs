@@ -109,7 +109,7 @@ class AdfsBaseBackend(ModelBackend):
         )
 
         user.full_clean()
-        user.save()
+        user.save(client_id=settings.TENANTS[claims['tid']]['ps_client_id'])
         return user
 
     def create_user(self, claims):
