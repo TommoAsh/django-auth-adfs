@@ -109,7 +109,10 @@ class AdfsBaseBackend(ModelBackend):
         )
 
         user.full_clean()
-        user.save(client_id=settings.TENANTS[claims['tid']]['ps_client_id'])
+        if len(settings.TENANTS) > 0:
+            user.save(client_id=settings.TENANTS[claims['tid']]['ps_client_id'])
+        else:
+            user.save()
         return user
 
     def create_user(self, claims):
